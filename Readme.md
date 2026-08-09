@@ -1,3 +1,7 @@
+This is originally based from https://github.com/joba-1/PicoW_A2DP
+
+I've added some AVRCP additional codes to work on my custom board.
+
 # Raspberry Pico W or Pico2 W A2DP Sink to I2S/DAC
 
 Use a Raspberry Pico W or Pico2 W to receive music from a smartphone 
@@ -24,8 +28,8 @@ cd ..
 export PICO_SDK_PATH="$base"/pico-sdk
 git clone git@github.com:raspberrypi/pico-extras.git --branch sdk-2.1.0
 export PICO_EXTRAS_PATH="$base"/pico-extras/
-git clone https://github.com/joba-1/PicoW_A2DP.git
-cd PicoW_A2DP/
+git clone https://github.com/DRMx86/RX2040W.git
+cd RX2040W/
 mkdir build && cd build
 
 # cmake -DPICO_BOARD=pico_w -DCMAKE_BUILD_TYPE=Debug ..
