@@ -23,6 +23,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(${PROJECT_NAME})
 
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src/ws2812_status.pio)
+
 target_sources(${PROJECT_NAME} PRIVATE
     ${PICO_SDK_PATH}/lib/btstack/src/btstack_audio.c
     src/btstack_audio_pico_i2s.c
@@ -31,6 +33,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     src/sdp.c
     src/a2dp.c
     src/avrcp.c
+    src/ws2812_status.c
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -38,6 +41,12 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     PICO_AUDIO_I2S_CLOCK_PIN_BASE=10  # =BCK, +1=LRCLK
     # RUN_PIN=22
     CONN_PIN=26
+    WS2812_PIN=16
+    WS2812_PIXEL_COUNT=1
+    WS2812_PAIRING_COLOR=0x000020
+    WS2812_CONNECTED_COLOR=0x002000
+    WS2812_BOOT_COLOR=0x201000
+    WS2812_ERROR_COLOR=0x200000
     BT_PIN="0000"
     BT_NAME="DRM Audio 1"
 )
@@ -51,10 +60,12 @@ target_link_libraries(${PROJECT_NAME}
     pico_btstack_classic
     pico_btstack_cyw43
     pico_cyw43_arch_none
+    hardware_pio
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR} # For btstack config
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})

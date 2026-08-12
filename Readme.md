@@ -46,6 +46,7 @@ cp picow-a2dp.uf2 /run/media/$USER/RP2??0/
 * Bluetooth name and pin also defined in CMakeLists.txt
 * If RUN_PIN is defined the pin will be used to pull down RUN pin to reset on fatal errors
 * CONN_PIN high indicates active bt connection (I use it to switch my AV receiver input)
+* A WS2812B status LED/string is enabled on GPIO16 by default. Customize it in CMakeLists.txt with `WS2812_PIN`, `WS2812_PIXEL_COUNT`, `WS2812_PAIRING_COLOR`, `WS2812_CONNECTED_COLOR`, `WS2812_BOOT_COLOR`, and `WS2812_ERROR_COLOR` (colors are 0xRRGGBB).
 
 ## Debugging / Flashing
 Use commandline to cmake the firmware, then copy the UF2 to the USB filesystem or use picoprobe and openocd to flash the firmware and openocd/gdb to debug.
@@ -70,6 +71,7 @@ Status is: works pretty well with Pico W and Pico2 W
     * on during boot
     * show a2dp connection status
     * blink on fatal errors
+    * drive a customizable WS2812B pairing/status indicator on GPIO16
 * configurable BT device name and BT connection pin
 * configurable hard reset via pin
 * Volume control
