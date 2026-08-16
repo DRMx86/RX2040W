@@ -12,12 +12,6 @@
 
 extern void led_connected(bool connected);
 
-extern void led_connected(bool connected);
-
-extern void led_connected(bool connected);
-
-extern void led_connected(bool connected);
-
 // from btstack_audio_pico.c
 const btstack_audio_sink_t * btstack_audio_pico_sink_get_instance(void);
 
@@ -248,6 +242,15 @@ static void media_processing_close(void) {
 }
 
 
+
+static void return_to_pairing_mode(void) {
+    media_processing_close();
+    led_connected(false);
+    gpio_put(CONN_PIN, 0);
+    gap_discoverable_control(1);
+    watchdog_enable(1000, true);  // reboot in 1s to recover the BT stack for new pairing/reconnect
+}
+
 static void event_handler(uint8_t event, uint8_t *packet) {
     uint8_t status;
     uint8_t allocation_method;
@@ -331,17 +334,13 @@ static void event_handler(uint8_t event, uint8_t *packet) {
         case A2DP_SUBEVENT_STREAM_RELEASED:
             // printf("A2DP  Sink      : Stream released\n");
             _stream_state = STREAM_STATE_CLOSED;
-            media_processing_close();
-            led_connected(false);  // return to pairing mode when the stream disconnects
-            gpio_put(CONN_PIN, 0);
+            return_to_pairing_mode();
             break;
 
         case A2DP_SUBEVENT_SIGNALING_CONNECTION_RELEASED:
             // printf("A2DP  Sink      : Signaling connection released\n");
             _stream_state = STREAM_STATE_CLOSED;
-            media_processing_close();
-            led_connected(false);  // return to pairing mode when the phone disconnects
-            gpio_put(CONN_PIN, 0);
+            return_to_pairing_mode();
             break;
 
         default:

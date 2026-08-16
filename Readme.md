@@ -75,5 +75,5 @@ Status is: works pretty well with Pico W and Pico2 W
 * configurable BT device name and BT connection pin
 * configurable hard reset via pin
 * Volume control
-* Return to pairing mode when the phone disconnects
+* Automatically reboot and return to pairing mode when the phone disconnects
 * Support pico2_w (just change the board type for cmake)
