@@ -332,18 +332,16 @@ static void event_handler(uint8_t event, uint8_t *packet) {
             // printf("A2DP  Sink      : Stream released\n");
             _stream_state = STREAM_STATE_CLOSED;
             media_processing_close();
-            led_connected(false);  // LED off before reboot
+            led_connected(false);  // return to pairing mode when the stream disconnects
             gpio_put(CONN_PIN, 0);
-            watchdog_enable(100, true);  // reboot in 0.1s, since reconnect is buggy
             break;
 
         case A2DP_SUBEVENT_SIGNALING_CONNECTION_RELEASED:
             // printf("A2DP  Sink      : Signaling connection released\n");
-            // _cid = 0;
-            // _stream_state = STREAM_STATE_CLOSED;
-            // media_processing_close();
-            // cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
-            // gpio_put(CONN_PIN, 0);
+            _stream_state = STREAM_STATE_CLOSED;
+            media_processing_close();
+            led_connected(false);  // return to pairing mode when the phone disconnects
+            gpio_put(CONN_PIN, 0);
             break;
 
         default:

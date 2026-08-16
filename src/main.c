@@ -63,21 +63,34 @@ static void blink_handler(btstack_timer_source_t *ts) {
     btstack_run_loop_add_timer(ts);
 }
 
+static void start_pairing_indicator(void) {
+    _connected = false;
+    _led_state = true;
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, _led_state);
+    ws2812_status_set_packed(WS2812_PAIRING_COLOR);
+    btstack_run_loop_remove_timer(&_blink_timer);
+    btstack_run_loop_set_timer_handler(&_blink_timer, blink_handler);
+    btstack_run_loop_set_timer(&_blink_timer, 250);
+    btstack_run_loop_add_timer(&_blink_timer);
+}
+
 // Called from a2dp.c on connect / disconnect
 void led_connected(bool connected) {
     _connected = connected;
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, connected);
-    ws2812_status_set_packed(connected ? WS2812_CONNECTED_COLOR : 0);
+    if (connected) {
+        btstack_run_loop_remove_timer(&_blink_timer);
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, true);
+        ws2812_status_set_packed(WS2812_CONNECTED_COLOR);
+        return;
+    }
+
+    start_pairing_indicator();
 }
 
 void on_bt_up( void *arg ) {
     printf("Bluetooth stack is up\n");
     // Start blinking to show we are in pairing mode
-    _connected = false;
-    btstack_run_loop_set_timer_handler(&_blink_timer, blink_handler);
-    btstack_run_loop_set_timer(&_blink_timer, 200);
-    btstack_run_loop_add_timer(&_blink_timer);
-    ws2812_status_set_packed(WS2812_PAIRING_COLOR);
+    start_pairing_indicator();
 }
 
 
