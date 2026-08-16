@@ -16,9 +16,19 @@
 #define WS2812_STATUS_ENABLED 1
 #endif
 
+#ifndef WS2812_PIO
+#define WS2812_PIO 1
+#endif
+
 #define WS2812_FREQ_HZ 800000
 
+#if WS2812_PIO == 0
 static PIO _pio = pio0;
+#elif WS2812_PIO == 1
+static PIO _pio = pio1;
+#else
+#error WS2812_PIO must be 0 or 1
+#endif
 static uint _sm = 0;
 static bool _ready = false;
 static bool _enabled = WS2812_STATUS_ENABLED;
