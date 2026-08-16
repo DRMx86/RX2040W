@@ -3,6 +3,7 @@
 #include "hardware/watchdog.h"
 
 #include "bt.h"
+#include "a2dp.h"
 #include "ws2812_status.h"
 #include <btstack_run_loop.h>
 #include <btstack_run_loop.h>
@@ -75,12 +76,13 @@ void led_connected(bool connected) {
 
 void on_bt_up( void *arg ) {
     printf("Bluetooth stack is up\n");
-    // Start blinking to show we are in pairing mode
+    // Start blinking to show we are in pairing mode while an optional reconnect is attempted.
     _connected = false;
     btstack_run_loop_set_timer_handler(&_blink_timer, blink_handler);
     btstack_run_loop_set_timer(&_blink_timer, 200);
     btstack_run_loop_add_timer(&_blink_timer);
     ws2812_status_set_packed(WS2812_PAIRING_COLOR);
+    a2dp_reconnect_last_device();
 }
 
 

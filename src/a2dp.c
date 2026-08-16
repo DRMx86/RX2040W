@@ -3,7 +3,9 @@
 #include <btstack.h>
 #include <btstack_resample.h>
 #include <classic/a2dp_sink.h>
+#include <string.h>
 #include "hardware/watchdog.h"
+#include "hardware/structs/watchdog.h"
 
 // for connection led
 #include <pico/cyw43_arch.h>
@@ -73,6 +75,101 @@ uint8_t _decoded_audio_storage[(256+32) * BYTES_PER_FRAME] = {0};
 int16_t * _request_buffer = 0;
 int _request_frames = 0;
 
+#ifndef RECONNECT_LAST_DEVICE_SECONDS
+#define RECONNECT_LAST_DEVICE_SECONDS 5
+#endif
+
+#define LAST_DEVICE_MAGIC 0xA2D20439u
+
+static btstack_timer_source_t _reconnect_timer;
+static bd_addr_t _last_device_addr = {0};
+static bool _last_device_valid = false;
+static bool _reconnect_pending = false;
+static uint16_t _reconnect_a2dp_cid = 0;
+static uint8_t _reconnect_attempts_left = 0;
+
+static void reconnect_timer_handler(btstack_timer_source_t *ts);
+
+static void save_last_device_addr(const bd_addr_t addr) {
+    memcpy(_last_device_addr, addr, sizeof(bd_addr_t));
+    _last_device_valid = true;
+
+    watchdog_hw->scratch[0] = LAST_DEVICE_MAGIC;
+    watchdog_hw->scratch[1] = ((uint32_t) addr[0] << 24u) | ((uint32_t) addr[1] << 16u) | ((uint32_t) addr[2] << 8u) | addr[3];
+    watchdog_hw->scratch[2] = ((uint32_t) addr[4] << 8u) | addr[5];
+}
+
+static bool load_last_device_addr(void) {
+    if (_last_device_valid) return true;
+    if (watchdog_hw->scratch[0] != LAST_DEVICE_MAGIC) return false;
+
+    const uint32_t upper = watchdog_hw->scratch[1];
+    const uint32_t lower = watchdog_hw->scratch[2];
+    _last_device_addr[0] = (upper >> 24u) & 0xffu;
+    _last_device_addr[1] = (upper >> 16u) & 0xffu;
+    _last_device_addr[2] = (upper >> 8u) & 0xffu;
+    _last_device_addr[3] = upper & 0xffu;
+    _last_device_addr[4] = (lower >> 8u) & 0xffu;
+    _last_device_addr[5] = lower & 0xffu;
+    _last_device_valid = true;
+    return true;
+}
+
+static void finish_reconnect_attempt(void) {
+    _reconnect_pending = false;
+    _reconnect_a2dp_cid = 0;
+    gap_discoverable_control(1);
+}
+
+static void start_reconnect_attempt(void) {
+    uint8_t status = a2dp_sink_establish_stream(_last_device_addr, &_reconnect_a2dp_cid);
+    if (status == ERROR_CODE_SUCCESS) {
+        _reconnect_pending = true;
+        printf("Attempting A2DP reconnect to %s\n", bd_addr_to_str(_last_device_addr));
+    } else {
+        _reconnect_pending = false;
+        _reconnect_a2dp_cid = 0;
+        printf("A2DP reconnect attempt failed to start, status 0x%02x\n", status);
+    }
+}
+
+static void reconnect_timer_handler(btstack_timer_source_t *ts) {
+    if (_stream_state != STREAM_STATE_CLOSED) {
+        finish_reconnect_attempt();
+        return;
+    }
+
+    if (_reconnect_attempts_left == 0) {
+        printf("A2DP reconnect timed out, staying in pairing mode\n");
+        if (_reconnect_pending && _reconnect_a2dp_cid != 0) {
+            a2dp_sink_disconnect(_reconnect_a2dp_cid);
+        }
+        finish_reconnect_attempt();
+        return;
+    }
+
+    if (!_reconnect_pending) {
+        start_reconnect_attempt();
+    }
+
+    _reconnect_attempts_left--;
+    btstack_run_loop_set_timer(ts, 1000);
+    btstack_run_loop_add_timer(ts);
+}
+
+bool a2dp_reconnect_last_device(void) {
+    if (RECONNECT_LAST_DEVICE_SECONDS == 0) return false;
+    if (!load_last_device_addr()) return false;
+
+    _reconnect_attempts_left = RECONNECT_LAST_DEVICE_SECONDS;
+    gap_discoverable_control(0);
+    btstack_run_loop_remove_timer(&_reconnect_timer);
+    btstack_run_loop_set_timer_handler(&_reconnect_timer, reconnect_timer_handler);
+    start_reconnect_attempt();
+    btstack_run_loop_set_timer(&_reconnect_timer, 1000);
+    btstack_run_loop_add_timer(&_reconnect_timer);
+    return true;
+}
 
 // process volume on decoded frames and send to i2s buffer or ringbuffer
 static void handle_pcm_data(int16_t * data, int num_audio_frames, int num_channels, int sample_rate, void * context) {
@@ -296,12 +393,16 @@ static void event_handler(uint8_t event, uint8_t *packet) {
         case A2DP_SUBEVENT_STREAM_ESTABLISHED:
             status = a2dp_subevent_stream_established_get_status(packet);
             if (status != ERROR_CODE_SUCCESS){
+                _reconnect_pending = false;
                 // printf("A2DP  Sink      : Streaming connection failed, status 0x%02x\n", status);
                 break;
             }
 
-            // a2dp_subevent_stream_established_get_bd_addr(packet, _addr);
-            // _cid = a2dp_subevent_stream_established_get_a2dp_cid(packet);
+            bd_addr_t addr;
+            a2dp_subevent_stream_established_get_bd_addr(packet, addr);
+            save_last_device_addr(addr);
+            btstack_run_loop_remove_timer(&_reconnect_timer);
+            finish_reconnect_attempt();
             _seid = a2dp_subevent_stream_established_get_local_seid(packet);
             _stream_state = STREAM_STATE_OPEN;
             led_connected(true);   // stop blink, LED steady ON

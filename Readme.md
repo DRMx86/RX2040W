@@ -76,4 +76,5 @@ Status is: works pretty well with Pico W and Pico2 W
 * configurable hard reset via pin
 * Volume control
 * Reboot on disconnect to work around buggy reconnect
+* Attempt reconnect to the last connected phone for `RECONNECT_LAST_DEVICE_SECONDS` seconds before staying in pairing mode
 * Support pico2_w (just change the board type for cmake)
