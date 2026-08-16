@@ -42,6 +42,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     # RUN_PIN=22
     CONN_PIN=26
     RECONNECT_LAST_DEVICE_SECONDS=5
+    LAST_DEVICE_FLASH_OFFSET=(PICO_FLASH_SIZE_BYTES-FLASH_SECTOR_SIZE)
     WS2812_PIN=16
     WS2812_PIO=1
     WS2812_PIXEL_COUNT=1
@@ -63,6 +64,7 @@ target_link_libraries(${PROJECT_NAME}
     pico_btstack_cyw43
     pico_cyw43_arch_none
     hardware_pio
+    hardware_flash
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE

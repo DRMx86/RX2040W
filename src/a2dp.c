@@ -4,7 +4,11 @@
 #include <btstack_resample.h>
 #include <classic/a2dp_sink.h>
 #include <string.h>
+#include "hardware/flash.h"
+#include "hardware/regs/addressmap.h"
+#include "hardware/sync.h"
 #include "hardware/watchdog.h"
+#include "pico/stdlib.h"
 #include "hardware/structs/watchdog.h"
 
 // for connection led
@@ -81,6 +85,16 @@ int _request_frames = 0;
 
 #define LAST_DEVICE_MAGIC 0xA2D20439u
 
+#ifndef LAST_DEVICE_FLASH_OFFSET
+#define LAST_DEVICE_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+#endif
+
+typedef struct {
+    uint32_t magic;
+    uint8_t addr[6];
+    uint16_t checksum;
+} last_device_record_t;
+
 static btstack_timer_source_t _reconnect_timer;
 static bd_addr_t _last_device_addr = {0};
 static bool _last_device_valid = false;
@@ -90,28 +104,78 @@ static uint8_t _reconnect_attempts_left = 0;
 
 static void reconnect_timer_handler(btstack_timer_source_t *ts);
 
-static void save_last_device_addr(const bd_addr_t addr) {
-    memcpy(_last_device_addr, addr, sizeof(bd_addr_t));
-    _last_device_valid = true;
+static uint16_t last_device_checksum(const bd_addr_t addr) {
+    uint16_t checksum = 0x5a5au;
+    for (size_t i = 0; i < sizeof(bd_addr_t); ++i) {
+        checksum = (checksum << 5u) ^ (checksum >> 11u) ^ addr[i];
+    }
+    return checksum;
+}
 
+static void save_last_device_scratch(const bd_addr_t addr) {
     watchdog_hw->scratch[0] = LAST_DEVICE_MAGIC;
     watchdog_hw->scratch[1] = ((uint32_t) addr[0] << 24u) | ((uint32_t) addr[1] << 16u) | ((uint32_t) addr[2] << 8u) | addr[3];
     watchdog_hw->scratch[2] = ((uint32_t) addr[4] << 8u) | addr[5];
 }
 
-static bool load_last_device_addr(void) {
-    if (_last_device_valid) return true;
+static bool load_last_device_scratch(bd_addr_t addr) {
     if (watchdog_hw->scratch[0] != LAST_DEVICE_MAGIC) return false;
 
     const uint32_t upper = watchdog_hw->scratch[1];
     const uint32_t lower = watchdog_hw->scratch[2];
-    _last_device_addr[0] = (upper >> 24u) & 0xffu;
-    _last_device_addr[1] = (upper >> 16u) & 0xffu;
-    _last_device_addr[2] = (upper >> 8u) & 0xffu;
-    _last_device_addr[3] = upper & 0xffu;
-    _last_device_addr[4] = (lower >> 8u) & 0xffu;
-    _last_device_addr[5] = lower & 0xffu;
+    addr[0] = (upper >> 24u) & 0xffu;
+    addr[1] = (upper >> 16u) & 0xffu;
+    addr[2] = (upper >> 8u) & 0xffu;
+    addr[3] = upper & 0xffu;
+    addr[4] = (lower >> 8u) & 0xffu;
+    addr[5] = lower & 0xffu;
+    return true;
+}
+
+static bool load_last_device_flash(bd_addr_t addr) {
+    const last_device_record_t *record = (const last_device_record_t *) (XIP_BASE + LAST_DEVICE_FLASH_OFFSET);
+    if (record->magic != LAST_DEVICE_MAGIC) return false;
+    if (record->checksum != last_device_checksum(record->addr)) return false;
+
+    memcpy(addr, record->addr, sizeof(bd_addr_t));
+    return true;
+}
+
+static void save_last_device_flash(const bd_addr_t addr) {
+    bd_addr_t stored_addr;
+    if (load_last_device_flash(stored_addr) && memcmp(stored_addr, addr, sizeof(bd_addr_t)) == 0) {
+        return;
+    }
+
+    uint8_t page[FLASH_PAGE_SIZE];
+    memset(page, 0xff, sizeof(page));
+
+    last_device_record_t *record = (last_device_record_t *) page;
+    record->magic = LAST_DEVICE_MAGIC;
+    memcpy(record->addr, addr, sizeof(bd_addr_t));
+    record->checksum = last_device_checksum(addr);
+
+    uint32_t interrupts = save_and_disable_interrupts();
+    flash_range_erase(LAST_DEVICE_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+    flash_range_program(LAST_DEVICE_FLASH_OFFSET, page, FLASH_PAGE_SIZE);
+    restore_interrupts(interrupts);
+}
+
+static void save_last_device_addr(const bd_addr_t addr) {
+    memcpy(_last_device_addr, addr, sizeof(bd_addr_t));
     _last_device_valid = true;
+    save_last_device_scratch(addr);
+    save_last_device_flash(addr);
+}
+
+static bool load_last_device_addr(void) {
+    if (_last_device_valid) return true;
+    if (!load_last_device_scratch(_last_device_addr) && !load_last_device_flash(_last_device_addr)) {
+        return false;
+    }
+
+    _last_device_valid = true;
+    save_last_device_scratch(_last_device_addr);
     return true;
 }
 
