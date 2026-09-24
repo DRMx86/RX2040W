@@ -1,6 +1,6 @@
 This is originally based from https://github.com/joba-1/PicoW_A2DP
 
-I've added some AVRCP additional codes to work on my custom board.
+I've added some AVRCP codes to work on my custom board.
 
 # Raspberry Pico W or Pico2 W A2DP Sink to I2S/DAC
 
