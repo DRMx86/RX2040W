@@ -21,7 +21,12 @@ jobs:
       uses: raspberrypi/pico-sdk-tools/installer@main
       with:
         sdk-version: '2.3.0'
-        sdk: true   # <-- this clones the SDK and sets PICO_SDK_PATH
+        sdk: true
+
+    - name: Clone Pico Extras
+      run: |
+        git clone https://github.com/raspberrypi/pico-extras.git ~/pico-extras --branch sdk-2.3.0 --depth 1
+        echo "PICO_EXTRAS_PATH=$HOME/pico-extras" >> $GITHUB_ENV
 
     - name: Configure CMake for Pico W
       run: |
