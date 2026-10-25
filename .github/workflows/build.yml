@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,37 +14,13 @@ jobs:
     steps:
     - name: Checkout RX2040W
       uses: actions/checkout@v4
-
-    - name: Cache Pico SDK and Extras
-      uses: actions/cache@v4
-      id: cache-pico
       with:
-        path: |
-          ~/pico-sdk
-          ~/pico-extras
-        key: ${{ runner.os }}-pico-sdk-2.1.0-${{ hashFiles('**/CMakeLists.txt') }}
+        ref: codex/add-ws2812b-bluetooth-pairing-indicator
 
-    - name: Install ARM Toolchain & Build Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
-
-    - name: Clone Pico SDK
-      if: steps.cache-pico.outputs.cache-hit != 'true'
-      run: |
-        git clone https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk --branch 2.1.0 --depth 1
-        cd ~/pico-sdk
-        git submodule update --init
-
-    - name: Clone Pico Extras
-      if: steps.cache-pico.outputs.cache-hit != 'true'
-      run: |
-        git clone https://github.com/raspberrypi/pico-extras.git ~/pico-extras --branch sdk-2.1.0 --depth 1
-
-    - name: Set Pico Environment Variables
-      run: |
-        echo "PICO_SDK_PATH=$HOME/pico-sdk" >> $GITHUB_ENV
-        echo "PICO_EXTRAS_PATH=$HOME/pico-extras" >> $GITHUB_ENV
+    - name: Install Pico SDK and Tools
+      uses: raspberrypi/pico-sdk-tools/installer@main
+      with:
+        sdk-version: '2.3.0'
 
     - name: Configure CMake for Pico W
       run: |
