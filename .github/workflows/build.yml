@@ -21,6 +21,7 @@ jobs:
       uses: raspberrypi/pico-sdk-tools/installer@main
       with:
         sdk-version: '2.3.0'
+        sdk: true   # <-- this clones the SDK and sets PICO_SDK_PATH
 
     - name: Configure CMake for Pico W
       run: |
